@@ -1,0 +1,11 @@
+# Model loading, training and evaluation.
+# Verified with Python 3.10, torch 2.4.1 (CUDA 12.1), torchvision 0.19.1, open_clip_torch 3.3.0.
+# Hard-negative generation needs extra packages: see negatives/requirements.txt.
+torch>=2.0
+torchvision
+open_clip_torch>=3.0
+huggingface_hub
+safetensors
+numpy
+pillow
+tqdm

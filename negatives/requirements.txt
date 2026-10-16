@@ -1,0 +1,14 @@
+# Extra dependencies for hard-negative generation (negatives/*.py).
+# Versions are the ones the scripts were verified with (Python 3.10, CUDA 12.1, A100).
+torch==2.4.1
+transformers==4.44.2
+tokenizers==0.19.1
+tqdm
+SceneGraphParser==0.1.0
+spacy==3.8.14
+# spaCy English model used by SceneGraphParser. Use 3.8.0: en_core_web_sm 3.7.1
+# changes about a third of the parses relative to the data used in the paper.
+en_core_web_sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
+# Optional, only for `generate.py --use_wordnet` (needed only to regenerate the
+# Table 4 SG+MLM data; the CS-CLIP data was generated without WordNet):
+#   nltk==3.10.0, then: python -m nltk.downloader wordnet omw-1.4   (WordNet 3.0)
