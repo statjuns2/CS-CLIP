@@ -23,12 +23,13 @@ that most contradicts the original caption. Seven negative types are generated
 - [Evaluation](#evaluation)
 - [Training](#training)
 - [Hard-negative generation](#hard-negative-generation)
+- [Implementation notes](#implementation-notes)
 - [Citation](#citation)
 
 ## Installation
 
 ```bash
-git clone https://github.com/<github-id>/CS-CLIP && cd CS-CLIP
+git clone https://github.com/statjuns2/CS-CLIP && cd CS-CLIP
 pip install -r requirements.txt          # model, training, evaluation
 pip install -r negatives/requirements.txt  # only for hard-negative generation
 ```
@@ -74,7 +75,7 @@ Results of the released checkpoint (seed 120), reproduced with the scripts in `e
 |---|---|---|---|---|---|---|---|---|
 | 83.71 / 94.31 / 87.94 | 78.05 / 81.98 | 90.83 / 89.02 | 88.59 | 5.18 | 85.96 | 77.36 | 53.20 / 42.17 | 71.27 |
 
-Table 1 of the paper reports the mean and standard deviation over three training seeds (SugarCrepe Avg 88.6 ± 0.2); this checkpoint is one of them.
+Table 1 of the paper reports the mean and standard deviation over three training seeds (120, 121 and 122; SugarCrepe Avg 88.6 ± 0.2); this checkpoint is the seed-120 run. Tables 2–4 report the seed-120 run.
 
 ## Data
 
@@ -164,6 +165,34 @@ MODEL=checkpoints/cs-clip/epoch_2.safetensors bash scripts/eval_all.sh
 
 In our runs, one epoch took about 3.5–4 hours on a single A100 80GB (fp32, batch size 128). Re-trained weights may differ slightly from the released checkpoint.
 
+The other two seeds of Table 1 use the same settings:
+
+```bash
+SEED=121 OUTPUT_DIR=checkpoints/cs-clip-seed121 bash scripts/train.sh
+SEED=122 OUTPUT_DIR=checkpoints/cs-clip-seed122 bash scripts/train.sh
+```
+
+### Ablations and analyses
+
+The training sets of the ablations are derived from the released training file with `negatives/make_variant.py` and trained with the same settings (`TRAIN_FILE=... OUTPUT_DIR=... bash scripts/train.sh`).
+
+```bash
+TRAIN=data/csclip/train/cs_clip_hard_negatives.jsonl
+
+# Table 4, leave-one-out: drop the negatives that target one element
+python negatives/make_variant.py --input $TRAIN --output data/csclip/train/without_object.jsonl    --without object
+python negatives/make_variant.py --input $TRAIN --output data/csclip/train/without_attribute.jsonl --without attribute
+python negatives/make_variant.py --input $TRAIN --output data/csclip/train/without_relation.jsonl  --without relation
+
+# Table 5, CS-CLIP-noSG: the same replacement words at random positions
+python negatives/make_variant.py --input $TRAIN --output data/csclip/train/no_sg.jsonl --random_position
+
+# Figure 5, sample efficiency: random subsets (seed 42), e.g. 10K instances
+python negatives/make_variant.py --input $TRAIN --output data/csclip/train/subset_10k.jsonl --num_samples 10000
+```
+
+The SG + Random and SG + MLM rows of Table 4 need regenerated negatives; see [Hard-negative generation](#hard-negative-generation).
+
 ## Hard-negative generation
 
 The released training file is exactly what CS-CLIP was trained on, so you do not need to regenerate it.
@@ -195,6 +224,18 @@ python negatives/merge_dedup.py --inputs outputs/negatives/negatives_contradicti
 - **Output.** The 9 shard files hold about 5.1M negatives (one per target), and about 2.04M remain after merging.
 - **Released file.** The released file also excludes 4,167 of the 82,783 train2014 images that were missing from an auxiliary file during development, so it is a subset of what the scripts produce. Pass the image ids of the released file with `--keep_image_ids` to `merge_dedup.py` to apply the same restriction. On the original generator output this reproduces the released file record for record.
 - **Ablations (Table 4).** SG+MLM: `PREFER=mlm EXTRA_ARGS=--use_wordnet`. SG+Random: `PREFER=random EXTRA_ARGS=--random_from_full_vocab`.
+
+## Implementation notes
+
+This repository contains the settings that produced the released checkpoint and the numbers in the paper. Where the description in the paper is simplified or differs, the code is the reference:
+
+- **Contrastive term.** The in-batch term is the margin ranking loss of Structure-CLIP (margin 0.2, `csclip/losses.py`), not a softmax InfoNCE loss.
+- **Loss weight.** The hard-negative hinge loss (margin 0.1) is weighted by 5: `L = L_contrastive + 5 · L_hinge`.
+- **Optimization.** AdamW with a constant learning rate of 2e-6 and weight decay 0.1, without a schedule; batch size 128, 2 epochs.
+- **Candidate filter.** The CS-CLIP training data was generated with the word-list and suffix rules in `negatives/generate.py`. The WordNet check is used only for the SG + MLM ablation data (`--use_wordnet`).
+- **VG-Relation / VG-Attribute.** The model sees the full image; `--crop` gives ARO's cropped protocol.
+
+Not included: the construction scripts of the GQA two-choice benchmark and the controlled test cases (the resulting files are released, see [Data](#data)), baseline checkpoints, and the Structure-CLIP backbone variant of Appendix E.
 
 ## Citation
 
